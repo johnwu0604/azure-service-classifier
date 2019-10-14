@@ -121,7 +121,7 @@ valid_dataset = valid_dataset.batch(batch_size)
 test_dataset = test_dataset.batch(batch_size)
 
 # Compile tf.keras model with optimizer, loss, and metric
-optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate, epsilon=1e-08, clipnorm=1.0)
 loss = tf.keras.losses.SparseCategoricalCrossentropy()
 metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
 model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
