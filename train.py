@@ -1,8 +1,8 @@
 import os
 import pandas as pd
+import argparse
 import tensorflow as tf
-import tensorflow_datasets
-from transformers import *
+from transformers import TFBertPreTrainedModel, TFBertMainLayer, BertTokenizer
 from transformers.modeling_tf_utils import get_initializer
 import logging
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)
@@ -83,9 +83,16 @@ def get_dataset(filename, tokenizer, max_seq_length, labels_map):
               'token_type_ids': tf.TensorShape([max_seq_length])},
              tf.TensorShape([])))
 
-# Get arguments
-data_dir = '../multiclass-data'
-export_dir = '../outputs'
+# Create required arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--max_seq_length', dest='max_seq_length', type=int, help='Maximum sequence length of input sentences.', required=True)
+parser.add_argument('--batch_size', dest='batch_size', type=int, help='Batch size for training.', required=True)
+parser.add_argument('--learning_rate', dest='learning_rate', type=float, help='Learning rate for training.', required=True)
+parser.add_argument('--steps_per_epoch', dest='steps_per_epoch', type=int, help='Number of steps per epoch.', required=True)
+parser.add_argument('--num_epochs', dest='num_epochs', type=int, help='Number of epochs to train for.', required=True)
+parser.add_argument('--data_dir', dest='data_dir', help='Root path of directory where data is stored.', required=True)
+parser.add_argument('--export_dir', dest='export_dir', help='The directory to export the model to', required=True)
+args = parser.parse_args()
 
 # Get labels
 labels = pd.read_csv(os.path.join(data_dir,'classes.txt'), header=None)
@@ -96,22 +103,22 @@ tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
 model = TFBertForMultiClassification.from_pretrained('bert-base-cased', num_labels=len(labels_map))
 
 # Load dataset, shuffle data, and put into batchs
-train_dataset = get_dataset(os.path.join(data_dir, 'train.csv'), tokenizer, 128, labels_map)
-valid_dataset = get_dataset(os.path.join(data_dir, 'valid.csv'), tokenizer, 128, labels_map)
-test_dataset = get_dataset(os.path.join(data_dir, 'test.csv'), tokenizer, 128, labels_map)
+train_dataset = get_dataset(os.path.join(data_dir, 'train.csv'), tokenizer, max_seq_length, labels_map)
+valid_dataset = get_dataset(os.path.join(data_dir, 'valid.csv'), tokenizer, max_seq_length, labels_map)
+test_dataset = get_dataset(os.path.join(data_dir, 'test.csv'), tokenizer, max_seq_length, labels_map)
 
-train_dataset = train_dataset.shuffle(100).repeat().batch(32)
-valid_dataset = valid_dataset.batch(32)
-test_dataset = test_dataset.batch(32)
+train_dataset = train_dataset.shuffle(100).repeat().batch(batch_size)
+valid_dataset = valid_dataset.batch(batch_size)
+test_dataset = test_dataset.batch(batch_size)
 
 # Compile tf.keras model with optimizer, loss, and metric
-optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
+optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 loss = tf.keras.losses.SparseCategoricalCrossentropy()
 metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
 model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
 
 # Train and evaluate model
-model.fit(train_dataset, epochs=3, validation_data=valid_dataset)
+model.fit(train_dataset, epochs=3, steps_per_epoch=steps_per_epoch, validation_data=valid_dataset)
 model.evaluate(test_dataset)
 
 # Export the trained model
