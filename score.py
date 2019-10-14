@@ -4,6 +4,8 @@ import pandas as pd
 import tensorflow as tf
 from transformers import TFBertPreTrainedModel, TFBertMainLayer, BertTokenizer
 from transformers.modeling_tf_utils import get_initializer
+import logging
+logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)
 
 class TFBertForMultiClassification(TFBertPreTrainedModel):
 
@@ -73,5 +75,5 @@ def run(raw_data):
 
 init()
 run(json.dumps({
-    'text': 'My python is not working'
+    'text': 'My VM is not working'
 }))
