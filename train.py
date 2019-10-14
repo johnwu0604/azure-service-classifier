@@ -118,7 +118,7 @@ metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
 model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
 
 # Train and evaluate model
-model.fit(train_dataset, epochs=3, steps_per_epoch=steps_per_epoch, validation_data=valid_dataset)
+model.fit(train_dataset, epochs=num_epochs, steps_per_epoch=steps_per_epoch, validation_data=valid_dataset)
 model.evaluate(test_dataset)
 
 # Export the trained model
