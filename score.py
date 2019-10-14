@@ -67,10 +67,13 @@ def run(raw_data):
         'token_type_ids': tf.convert_to_tensor([token_type_ids], dtype=tf.int32)
     })
 
-    return {
+    result =  {
         'prediction': str(labels[predictions[0].argmax().item()]),
         'probability': str(predictions[0].max())
     }
+
+    print(result)
+    return result
 
 
 init()
