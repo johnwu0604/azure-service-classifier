@@ -37,8 +37,8 @@ labels = ['azure-web-app-service', 'azure-storage', 'azure-devops', 'azure-virtu
 
 def init():
     global tokenizer, model
-    model_dir = os.path.join(os.getenv('AZUREML_MODEL_DIR'), 'azure-service-classifier')
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    model_dir = './output'
+    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
     model = TFBertForMultiClassification.from_pretrained(model_dir, num_labels=len(labels))
 
 def run(raw_data):
