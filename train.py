@@ -94,11 +94,13 @@ parser.add_argument('--data_dir', dest='data_dir', help='Root path of directory 
 parser.add_argument('--export_dir', dest='export_dir', help='The directory to export the model to', required=True)
 args = parser.parse_args()
 
+print(args)
+
 # Take in arguments from argparser
 max_seq_length = args.max_seq_length
 batch_size = args.batch_size
 steps_per_epoch = args.steps_per_epoch
-learning_rate = args.batch_size
+learning_rate = args.learning_rate
 num_epochs = args.num_epochs
 data_dir = args.data_dir
 export_dir = args.export_dir
