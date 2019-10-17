@@ -2,17 +2,28 @@ import os
 import pandas as pd
 import argparse
 import tensorflow as tf
+from absl import app
+from absl import flags
 from transformers import TFBertPreTrainedModel, TFBertMainLayer, BertTokenizer
 from transformers.modeling_tf_utils import get_initializer
 import logging
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)
+
+FLAGS = flags.FLAGS
+
+flags.DEFINE_integer('max_seq_length', 128, 'Maximum sequence length of input sentences.')
+flags.DEFINE_integer('batch_size', 32, 'Batch size for training.', lower_bound=0)
+flags.DEFINE_float('learning_rate', 3e-5, 'Learning rate for training.')
+flags.DEFINE_integer('steps_per_epoch', 150, 'Number of steps per epoch.')
+flags.DEFINE_integer('num_epochs', 3, 'Number of epochs to train for.', lower_bound=0)
+flags.DEFINE_string('data_dir', None, 'Root path of directory where data is stored.')
+flags.DEFINE_string('export_dir', './ouputs', 'The directory to export the model to')
 
 class TFBertForMultiClassification(TFBertPreTrainedModel):
 
     def __init__(self, config, *inputs, **kwargs):
         super(TFBertForMultiClassification, self).__init__(config, *inputs, **kwargs)
         self.num_labels = config.num_labels
-
         self.bert = TFBertMainLayer(config, name='bert')
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
         self.classifier = tf.keras.layers.Dense(config.num_labels,
@@ -22,14 +33,10 @@ class TFBertForMultiClassification(TFBertPreTrainedModel):
 
     def call(self, inputs, **kwargs):
         outputs = self.bert(inputs, **kwargs)
-
         pooled_output = outputs[1]
-
         pooled_output = self.dropout(pooled_output, training=kwargs.get('training', False))
         logits = self.classifier(pooled_output)
-
         outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
-
         return outputs  # logits, (hidden_states), (attentions)
 
 def encode_example(example, tokenizer, max_seq_length, labels_map):
@@ -83,54 +90,40 @@ def get_dataset(filename, tokenizer, max_seq_length, labels_map):
               'token_type_ids': tf.TensorShape([max_seq_length])},
              tf.TensorShape([])))
 
-# Create required arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('--max_seq_length', dest='max_seq_length', type=int, help='Maximum sequence length of input sentences.', required=True)
-parser.add_argument('--batch_size', dest='batch_size', type=int, help='Batch size for training.', required=True)
-parser.add_argument('--learning_rate', dest='learning_rate', type=float, help='Learning rate for training.', required=True)
-parser.add_argument('--steps_per_epoch', dest='steps_per_epoch', type=int, help='Number of steps per epoch.', required=True)
-parser.add_argument('--num_epochs', dest='num_epochs', type=int, help='Number of epochs to train for.', required=True)
-parser.add_argument('--data_dir', dest='data_dir', help='Root path of directory where data is stored.', required=True)
-parser.add_argument('--export_dir', dest='export_dir', help='The directory to export the model to', required=True)
-args = parser.parse_args()
+def main(_):
 
-# Take in arguments from argparser
-max_seq_length = args.max_seq_length
-batch_size = args.batch_size
-steps_per_epoch = args.steps_per_epoch
-learning_rate = args.learning_rate
-num_epochs = args.num_epochs
-data_dir = args.data_dir
-export_dir = args.export_dir
+    # Get labels
+    labels = pd.read_csv(os.path.join(FLAGS.data_dir,'classes.txt'), header=None)
+    labels_map = { row[0]:index for index, row in labels.iterrows() }
 
-# Get labels
-labels = pd.read_csv(os.path.join(data_dir,'classes.txt'), header=None)
-labels_map = { row[0]:index for index, row in labels.iterrows() }
+    # Load dataset, tokenizer, model from pretrained model/vocabulary
+    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+    model = TFBertForMultiClassification.from_pretrained('bert-base-cased', num_labels=len(labels_map))
 
-# Load dataset, tokenizer, model from pretrained model/vocabulary
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
-model = TFBertForMultiClassification.from_pretrained('bert-base-cased', num_labels=len(labels_map))
+    # Load dataset, shuffle data, and put into batchs
+    train_dataset = get_dataset(os.path.join(FLAGS.data_dir, 'train.csv'), tokenizer, FLAGS.max_seq_length, labels_map)
+    valid_dataset = get_dataset(os.path.join(FLAGS.data_dir, 'valid.csv'), tokenizer, FLAGS.max_seq_length, labels_map)
+    test_dataset = get_dataset(os.path.join(FLAGS.data_dir, 'test.csv'), tokenizer, FLAGS.max_seq_length, labels_map)
 
-# Load dataset, shuffle data, and put into batchs
-train_dataset = get_dataset(os.path.join(data_dir, 'train.csv'), tokenizer, max_seq_length, labels_map)
-valid_dataset = get_dataset(os.path.join(data_dir, 'valid.csv'), tokenizer, max_seq_length, labels_map)
-test_dataset = get_dataset(os.path.join(data_dir, 'test.csv'), tokenizer, max_seq_length, labels_map)
+    train_dataset = train_dataset.shuffle(100).repeat().batch(FLAGS.batch_size)
+    valid_dataset = valid_dataset.batch(FLAGS.batch_size)
+    test_dataset = test_dataset.batch(FLAGS.batch_size)
 
-train_dataset = train_dataset.shuffle(100).repeat().batch(batch_size)
-valid_dataset = valid_dataset.batch(batch_size)
-test_dataset = test_dataset.batch(batch_size)
+    # Compile tf.keras model with optimizer, loss, and metric
+    optimizer = tf.keras.optimizers.Adam(learning_rate=FLAGS.learning_rate, epsilon=1e-08, clipnorm=1.0)
+    loss = tf.keras.losses.SparseCategoricalCrossentropy()
+    metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
+    model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
 
-# Compile tf.keras model with optimizer, loss, and metric
-optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
-loss = tf.keras.losses.SparseCategoricalCrossentropy()
-metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
-model.compile(optimizer=optimizer, loss=loss, metrics=[metric])
+    # Train and evaluate model
+    model.fit(train_dataset, epochs=FLAGS.num_epochs, steps_per_epoch=FLAGS.steps_per_epoch, validation_data=valid_dataset)
+    model.evaluate(test_dataset)
 
-# Train and evaluate model
-model.fit(train_dataset, epochs=num_epochs, steps_per_epoch=steps_per_epoch, validation_data=valid_dataset)
-model.evaluate(test_dataset)
+    # Export the trained model
+    if not os.path.exists(FLAGS.export_dir):
+        os.makedirs(FLAGS.export_dir)
+    model.save_pretrained(FLAGS.export_dir)
 
-# Export the trained model
-if not os.path.exists(export_dir):
-    os.makedirs(export_dir)
-model.save_pretrained(export_dir)
+if __name__ == '__main__':
+    flags.mark_flag_as_required('data_dir')
+    app.run(main)
