@@ -140,7 +140,7 @@ def main(_):
     # Compile tf.keras model with optimizer, loss, and metric
     loss = tf.keras.losses.SparseCategoricalCrossentropy()
     metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
-    model.compile(optimizer=optimizer, loss=loss, metrics=[metric], experimental_run_tf_function=False))
+    model.compile(optimizer=optimizer, loss=loss, metrics=[metric], experimental_run_tf_function=False)
 
     callbacks = [
         # Horovod: broadcast initial variable states from rank 0 to all other processes.
