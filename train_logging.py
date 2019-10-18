@@ -27,11 +27,11 @@ class AmlLogger(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         run.log('val_loss', logs.get('val_loss'))
-        run.log('val_acc', logs.get('val_acc'))
+        run.log('val_accuracy', logs.get('val_accuracy'))
 
     def on_batch_end(self, batch, logs={}):
         run.log('loss', logs.get('loss'))
-        run.log('accuracy', logs.get('acc'))
+        run.log('accuracy', logs.get('accuracy'))
 
 class TFBertForMultiClassification(TFBertPreTrainedModel):
 
