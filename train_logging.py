@@ -25,7 +25,7 @@ flags.DEFINE_string('export_dir', './ouputs', 'The directory to export the model
 
 class AmlLogger(tf.keras.callbacks.Callback):
 
-    def on_batch_end(self, epoch, logs={}):
+    def on_epoch_end(self, epoch, logs={}):
         run.log('val_loss', logs.get('val_loss'))
         run.log('val_acc', logs.get('val_acc'))
 
