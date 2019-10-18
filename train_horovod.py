@@ -13,6 +13,9 @@ logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)
 from azureml.core.run import Run
 run = Run.get_context()
 
+# Import horovod libary for distributed training
+import horovod.tensorflow.keras as hvd
+
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer('max_seq_length', 128, 'Maximum sequence length of input sentences.')
