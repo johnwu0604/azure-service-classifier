@@ -29,12 +29,12 @@ flags.DEFINE_string('export_dir', './ouputs', 'The directory to export the model
 class AmlLogger(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
-        run.log('val_loss', logs.get('val_loss'))
-        run.log('val_acc', logs.get('val_acc'))
+        run.log('val_loss', float(logs.get('val_loss')))
+        run.log('val_accuracy', float(logs.get('val_accuracy')))
 
     def on_batch_end(self, batch, logs={}):
-        run.log('loss', logs.get('loss'))
-        run.log('accuracy', logs.get('acc'))
+        run.log('loss', float(logs.get('loss')))
+        run.log('accuracy', float(logs.get('accuracy')))
 
 class TFBertForMultiClassification(TFBertPreTrainedModel):
 
