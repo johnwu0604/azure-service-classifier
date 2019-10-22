@@ -1,16 +1,18 @@
 import os
-import pandas as pd
 import argparse
+import logging
+import pandas as pd
 import tensorflow as tf
 from absl import app
 from absl import flags
 from transformers import TFBertPreTrainedModel, TFBertMainLayer, BertTokenizer
 from transformers.modeling_tf_utils import get_initializer
-import logging
+
+# Ignore warnings in logs
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)
 
+# Define input arguments
 FLAGS = flags.FLAGS
-
 flags.DEFINE_integer('max_seq_length', 128, 'Maximum sequence length of input sentences.')
 flags.DEFINE_integer('batch_size', 32, 'Batch size for training.', lower_bound=0)
 flags.DEFINE_float('learning_rate', 3e-5, 'Learning rate for training.')
@@ -20,6 +22,7 @@ flags.DEFINE_string('data_dir', None, 'Root path of directory where data is stor
 flags.DEFINE_string('export_dir', './ouputs', 'The directory to export the model to')
 
 class TFBertForMultiClassification(TFBertPreTrainedModel):
+    '''BERT Model class for multi-label classification using a softmax output layer '''
 
     def __init__(self, config, *inputs, **kwargs):
         super(TFBertForMultiClassification, self).__init__(config, *inputs, **kwargs)
@@ -40,6 +43,15 @@ class TFBertForMultiClassification(TFBertPreTrainedModel):
         return outputs  # logits, (hidden_states), (attentions)
 
 def encode_example(example, tokenizer, max_seq_length, labels_map):
+    ''' Encodes an input text using the BERT tokenizer
+
+    :param example: Input line from CSV file
+    :param tokenizer: BERT tokenizer object from transformers libary
+    :param max_seq_length: Maximum length of word embedding in encoded example
+    :param labels_map: Label map dictionary
+    :return: Encoded example that can be inputted into the BERT model
+
+    '''
     # Encode inputs using tokenizer
     inputs = tokenizer.encode_plus(
         example[1],
@@ -69,6 +81,15 @@ def encode_example(example, tokenizer, max_seq_length, labels_map):
 
 
 def read_csv(filename, tokenizer, max_seq_length, labels_map):
+    ''' Reads a CSV file line by line and encodes each example using the BERT tokenizer
+
+    :param filename: The name of the CSV file
+    :param tokenizer: BERT tokenizer object from transformers libary
+    :param max_seq_length: Maximum length of word embedding in encoded example
+    :param labels_map: Label map dictionary
+    :return: Encoded examples for BERT model as a generator
+    
+    '''
     with open(filename, 'r') as f:
         for line in f.readlines():
             record = line.rstrip().split(',')
@@ -79,6 +100,15 @@ def read_csv(filename, tokenizer, max_seq_length, labels_map):
                       features['label'])
 
 def get_dataset(filename, tokenizer, max_seq_length, labels_map):
+    ''' Loads data from a CSV file into a Tensorflow Dataset (while encoding each example)
+
+    :param filename: The name of the CSV file
+    :param tokenizer: BERT tokenizer object from transformers libary
+    :param max_seq_length: Maximum length of word embedding in encoded example
+    :param labels_map: Label map dictionary
+    :return: A Tensorflow Dataset object with encoded inputs from CSV file
+    
+    '''
     generator = lambda: read_csv(filename, tokenizer, max_seq_length, labels_map)
     return tf.data.Dataset.from_generator(generator,
             ({'input_ids': tf.int32,
