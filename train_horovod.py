@@ -159,9 +159,10 @@ def main(_):
     valid_dataset = get_dataset(os.path.join(FLAGS.data_dir, 'valid.csv'), tokenizer, FLAGS.max_seq_length, labels_map)
     test_dataset = get_dataset(os.path.join(FLAGS.data_dir, 'test.csv'), tokenizer, FLAGS.max_seq_length, labels_map)
 
-    train_dataset = train_dataset.shuffle(100).repeat().batch(FLAGS.batch_size)
-    valid_dataset = valid_dataset.batch(FLAGS.batch_size)
-    test_dataset = test_dataset.batch(FLAGS.batch_size)
+    # Horovod: multiply batch size by number of gpu's
+    train_dataset = train_dataset.shuffle(100).repeat().batch(FLAGS.batch_size * hvd.size())
+    valid_dataset = valid_dataset.batch(FLAGS.batch_size * hvd.size())
+    test_dataset = test_dataset.batch(FLAGS.batch_size * hvd.size())
 
     # Horovod: add Horovod DistributedOptimizer.
     optimizer = tf.keras.optimizers.Adam(learning_rate=FLAGS.learning_rate*hvd.size(), epsilon=1e-08, clipnorm=1.0)
